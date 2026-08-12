@@ -132,6 +132,25 @@ external, attacker-unreachable dependency:
   pinned release — widening the realistic attack surface further, though
   this PoC does not rely on that path.
 
+**Note (unverified/theoretical, does not change the Impact assessment
+below)**: the `sha256`-pinned integrity of the upstream `@nccl`/
+`@nccl-tests` archives only guarantees that the fetched *source* is
+unmodified — it says nothing about the *build recipe* applied to that
+source. Because `examples/nccl/nccl-tests.bzl` and the `build_file`
+overlays passed to `http_archive` are themselves ordinary, attacker-owned
+files in the same PR, an attacker could in principle add extra `srcs`/
+`deps` to the `cc_binary`/`cuda_library` targets so that attacker code is
+compiled and linked into the *same output binaries* as the legitimate,
+hash-verified NCCL test sources — a supply-chain-style tampering of the
+build *output* that source-integrity pinning alone would not catch. I did
+not build or verify this variant, and it does not apply to this specific
+workflow anyway: `test-comment` only runs `bazel build` (compile only,
+no `bazel run`/`bazel test`/artifact upload), so nothing in this pipeline
+executes or publishes the resulting binaries. I mention it only to note
+that the underlying vulnerability class is broader than the immediate,
+already-Critical build-time command execution demonstrated in this
+report — not as an additional claimed impact.
+
 ## Impact
 
 An attacker needs only a GitHub account and the ability to open a pull
