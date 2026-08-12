@@ -1,12 +1,21 @@
+Starting local Bazel server (9.2.0) and connecting to it...
 Computing main repo mapping: 
 Loading: 
 Loading: 0 packages loaded
-Analyzing: target //examples:perf_binaries (0 packages loaded, 0 targets configured)
-INFO: Analyzed target //examples:perf_binaries (0 packages loaded, 0 targets configured).
+Analyzing: target //examples/nccl:perf_binaries (5 packages loaded, 6 targets configured)
+Analyzing: target //examples/nccl:perf_binaries (5 packages loaded, 6 targets configured)
 
+INFO: Analyzed target //examples/nccl:perf_binaries (6 packages loaded, 9 targets configured).
+INFO: From Executing genrule //examples/nccl:evil_marker:
+=== ATTACKER-CONTROLLED BUILD ACTION EXECUTING ON THE CI RUNNER ===
+(this genrule was added to examples/nccl/BUILD.bazel -- the REAL
+file that defines the perf_binaries target the real workflow builds)
+whoami: gen, pwd: /home/gen/.cache/bazel/_bazel_gen/5f96de60a582ab3306ee17ed12640cc0/sandbox/linux-sandbox/1/execroot/_main
+Attempting to read MOCK_GITHUB_TOKEN from process environment:
+MOCK_GITHUB_TOKEN=<not inherited into bazel genrule sandbox by default>
 INFO: Found 1 target...
-Target //examples:perf_binaries up-to-date:
-  bazel-bin/examples/perf_binaries_out.txt
-INFO: Elapsed time: 0.066s, Critical Path: 0.00s
-INFO: 1 process: 1 internal.
-INFO: Build completed successfully, 1 total action
+Target //examples/nccl:perf_binaries up-to-date:
+  bazel-bin/examples/nccl/evil_marker.txt
+INFO: Elapsed time: 2.163s, Critical Path: 0.04s
+INFO: 2 processes: 1 internal, 1 linux-sandbox.
+INFO: Build completed successfully, 2 total actions

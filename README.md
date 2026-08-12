@@ -18,10 +18,14 @@ runner to any GitHub account, with zero review, zero collaborator
 status, and zero prior relationship to the repository.
 
 This PoC verifies, using the **real, unmodified `bazelisk`/Bazel
-toolchain**, that a malicious `genrule` placed in a local stand-in for
-such a fork PR's `examples/BUILD.bazel` executes its `cmd=` shell script
-as an ordinary consequence of `bazel build` resolving that target —
-reproduced on 2 independent runs.
+toolchain**, that a malicious `genrule` added to a local stand-in for
+`examples/nccl/BUILD.bazel` (the exact file, at the exact path, that
+defines the real `perf_binaries` target this workflow builds — confirmed
+directly against the current repo content, including that
+`@rules_cuda_examples` is a self-referential bzlmod label resolving to
+the PR's own checkout, not a pinned external dependency) executes its
+`cmd=` shell script as an ordinary consequence of `bazel build` resolving
+that target — reproduced on 2 independent runs.
 
 **Honesty note**: Bazel's default genrule sandbox clears the process
 environment before running commands, so a naive `echo $TOKEN` inside a
@@ -58,7 +62,7 @@ Expected output includes the attacker-controlled genrule's marker line
 appearing in the real Bazel build log:
 
 ```
-INFO: From Executing genrule //examples:perf_binaries:
+INFO: From Executing genrule //examples/nccl:evil_marker:
 === ATTACKER-CONTROLLED BUILD ACTION EXECUTING ON THE CI RUNNER ===
 ...
 INFO: Build completed successfully, ...

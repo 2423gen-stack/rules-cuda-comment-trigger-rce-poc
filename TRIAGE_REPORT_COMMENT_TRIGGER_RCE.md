@@ -50,9 +50,10 @@ custom rule implementations, etc.) defined in that PR's own
 workflow context.**
 
 I verified, using the real, unmodified `bazelisk`/Bazel toolchain, that a
-malicious `genrule` placed in a local stand-in for such a fork PR's
-`examples/BUILD.bazel` does execute its `cmd=` shell script as part of
-`bazel build` resolving that target — reproduced on 2 independent runs.
+malicious `genrule` added to a local stand-in for `examples/nccl/BUILD.bazel`
+(the exact file, at the exact path, that defines the real `perf_binaries`
+target this workflow builds) does execute its `cmd=` shell script as part
+of `bazel build` resolving that target — reproduced on 2 independent runs.
 
 ## Vulnerability Details
 
@@ -100,15 +101,49 @@ build actions (`genrule` commands, custom Starlark rule implementations,
 `repository_rule`s, etc.) are reachable from that target as defined in
 the checked-out `examples/` tree.
 
+### Verification that the attacker fully controls the built content
+
+I confirmed this directly against the current repository content
+(2026-08-12), since `@rules_cuda_examples` uses the `@`-prefixed external
+label syntax and it is worth verifying this is not actually a pinned,
+external, attacker-unreachable dependency:
+
+- `examples/MODULE.bazel` declares `module(name = "rules_cuda_examples",
+  ...)` — `@rules_cuda_examples` is a **self-referential** bzlmod label,
+  not a pinned external dependency. It resolves to the PR's own
+  checked-out `examples/` tree.
+- The real `perf_binaries` target is defined in
+  `examples/nccl/BUILD.bazel` as a `filegroup` whose `srcs` are
+  `@nccl-tests//:*_perf` targets. `@nccl`/`@nccl-tests` themselves ARE
+  fetched via `http_archive` with pinned `sha256` + `urls` (declared in
+  `examples/WORKSPACE.bzlmod`) — an attacker cannot tamper with the
+  fetched upstream NCCL source through those pins.
+- However, `examples/nccl/BUILD.bazel` itself — the file that defines
+  `perf_binaries` and wires in its dependencies — is an ordinary file
+  inside the attacker's own fork PR. An attacker does not need to defeat
+  the `sha256` pinning at all: adding a new target to this same file and
+  making `perf_binaries` (transitively) depend on it is sufficient, as
+  demonstrated in this PoC's `attacker_fork_pr/examples/nccl/BUILD.bazel`
+  (laid out at the identical path to the real file).
+- Separately, `examples/MODULE.bazel` also contains
+  `local_path_override(module_name = "rules_cuda", path = "..")`, meaning
+  the example project's own `rules_cuda` ruleset dependency is overridden
+  to the local checkout (the PR's own root directory) rather than a
+  pinned release — widening the realistic attack surface further, though
+  this PoC does not rely on that path.
+
 ## Impact
 
 An attacker needs only a GitHub account and the ability to open a pull
 request and comment on it (both zero-privilege actions on a public
 repository):
 
-1. Open a PR from a fork containing a malicious `examples/BUILD.bazel`
-   (or a malicious dependency in `examples/MODULE.bazel`/`WORKSPACE`, or
-   a malicious `repository_rule` invoked during dependency resolution).
+1. Open a PR from a fork adding a malicious build target to
+   `examples/nccl/BUILD.bazel` (the real file defining the real
+   `perf_binaries` target), wired in as a dependency of `perf_binaries` —
+   or, more broadly, a malicious dependency anywhere in
+   `examples/MODULE.bazel`/`WORKSPACE.bzlmod`, or a malicious
+   `repository_rule` invoked during dependency resolution.
 2. Comment `/test` on that PR.
 3. `test-comment` runs with no review, no approval, and no
    collaborator-status requirement, executing the attacker's build
@@ -167,10 +202,13 @@ checked-out `examples/` tree would contain. Provided in this directory:
 
 - `run_poc.sh` — the PoC script.
 - `attacker_fork_pr/` — a minimal Bazel workspace (`MODULE.bazel` +
-  `examples/BUILD.bazel`) modeling the attacker-controlled content a fork
-  PR would supply.
+  `examples/nccl/BUILD.bazel`, laid out at the exact same path as the
+  real file) modeling the attacker-controlled content a fork PR would
+  supply, with a malicious `genrule` added alongside the real
+  `perf_binaries` target definition.
 - `bazel_build_output_run1.log`, `bazel_build_output_run2.log` — two
-  independent, full verified transcripts.
+  independent, full verified transcripts (`bazel clean --expunge` was run
+  between them to force a real re-execution rather than a cache hit).
 
 Run (requires `bazelisk`/`bazel` on `PATH`; no network access to any real
 CI/CD system, no credentials required):
@@ -180,8 +218,10 @@ CI/CD system, no credentials required):
 
 Observed output (verified, reproduced across two independent runs):
 ```
-INFO: From Executing genrule //examples:perf_binaries:
+INFO: From Executing genrule //examples/nccl:evil_marker:
 === ATTACKER-CONTROLLED BUILD ACTION EXECUTING ON THE CI RUNNER ===
+(this genrule was added to examples/nccl/BUILD.bazel -- the REAL
+file that defines the perf_binaries target the real workflow builds)
 whoami: gen, pwd: /home/gen/.cache/bazel/_bazel_gen/.../execroot/_main
 Attempting to read MOCK_GITHUB_TOKEN from process environment:
 MOCK_GITHUB_TOKEN=<not inherited into bazel genrule sandbox by default>

