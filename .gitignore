@@ -1,0 +1,4 @@
+attacker_fork_pr/bazel-*
+attacker_fork_pr/MODULE.bazel.lock
+attacker_fork_pr/examples/bazel-*
+PORTAL_SUBMISSION_DRAFT.md
